@@ -26,9 +26,12 @@ def getTemperatureForecast(nombreMunicipio, idMunicipio, api_key):
   req2 = requests.get(url2, headers = {"api_key": api_key})
   json2 = req2.json()
   
-  temperatures = {"Nombre del municipio": nombreMunicipio,\
-  "Fecha de consulta": datetime.utcnow().strftime("%d-%m-%YT%H:%M:%S")}
+  temperatures = {
+    "Nombre del municipio": nombreMunicipio,
+    "Fecha de consulta": datetime.utcnow().strftime("%d-%m-%YT%H:%M:%S")
+  }
   ini_dt = datetime.strptime(json2[0]["elaborado"], "%Y-%m-%dT%H:%M:%S")
+  
   for i in range(len(json2[0]["prediccion"]["dia"])):
     for j in range(len(json2[0]["prediccion"]["dia"][i]["temperatura"])):
       h = int(json2[0]["prediccion"]["dia"][i]["temperatura"][j]["periodo"])
