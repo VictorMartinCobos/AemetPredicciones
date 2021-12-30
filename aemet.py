@@ -1,26 +1,37 @@
 import requests
-import tabulate
-#
+from datetime import datetime, timedelta
 
-api_key = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ2aWN0b3JtYXJ0aW5jb2Jvc0BnbWFpbC5jb20iLCJqdGkiOiJiYTVhZDk4Ni05MmMzLTQ2OGUtOGNmZS02ZDJjNGU4ZTdiOTkiLCJpc3MiOiJBRU1FVCIsImlhdCI6MTY0MDc5Nzc3MiwidXNlcklkIjoiYmE1YWQ5ODYtOTJjMy00NjhlLThjZmUtNmQyYzRlOGU3Yjk5Iiwicm9sZSI6IiJ9.YM5e6Q1omNryoxOvyg2AIAWTTw5eXrhvLM6sRo1O5UU"
-headers = {"api_key": api_key}
+#Get a json with data from every municipality (included its id)
+def jsonMunicipios(api_key):
+  url = "https://opendata.aemet.es/opendata/api/maestro/municipios"
+  req = requests.get(url, headers = {"api_key": api_key})
+  return(req.json())
 
-url = "https://opendata.aemet.es/opendata/api/maestro/municipios"
-req_municipios = requests.get(url, headers = headers)
-json_municipios = req_municipios.json()
-
-def idMunicipio(nombreMunicipio):
-  for i in range(len(json_municipios)):
-    if json_municipios[i]["capital"] == nombreMunicipio:
-      return(json_municipios[i]["id"])
-  else:
-    print("No se encontraron resultados")
+#Function to get the id of a municipality in a dictionary
+def idMunicipio(nombreMunicipio, json):
+  for i in range(len(json)):
+    if json[i]["capital"] == nombreMunicipio:
+      return(json[i]["id"])
     
-idConsultada = idMunicipio(municipioConsultado)
-
-url2 = "https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/horaria/" + idConsultada[2:]
-
-req = requests.get(url2, headers = headers)
-json2 = req.json()
-
+#Function to get temperature forecast from a specific municipality given its id
+def getTemperatureForecast(idMunicipio, api_key):
+  url = "https://opendata.aemet.es/opendata/api/prediccion/especifica/municipio/horaria/" + idMunicipio[2:]
+  req = requests.get(url, headers = {"api_key": api_key})
+  json = req.json()
+  
+  url2 = json["datos"]
+  req2 = requests.get(url2, headers = {"api_key": api_key})
+  json2 = req2.json()
+  
+  temperatures = {}
+  ini_dt = datetime.strptime(json2[0]["elaborado"], "%Y-%m-%dT%H:%M:%S")
+  for i in range(len(json2[0]["prediccion"]["dia"])):
+    for j in range(len(json2[0]["prediccion"]["dia"][i]["temperatura"])):
+      h = int(json2[0]["prediccion"]["dia"][i]["temperatura"][j]["periodo"])
+      dt = ini_dt.replace(hour = h, minute = 0, second = 0) + timedelta(days = i)
+      str_dt = dt.strftime("%d-%m-%YT%H:%M:%S")
+      temperature = int(json2[0]["prediccion"]["dia"][i]["temperatura"][j]["value"])
+      temperatures[str_dt] = temperature
+  
+  return(temperatures)
 
