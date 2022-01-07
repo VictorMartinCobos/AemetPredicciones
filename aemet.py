@@ -1,44 +1,63 @@
 #Functions to obtain hourly temperature forecasts from AEMET
-import requests
-from datetime import datetime, timedelta
+import requests, datetime
 
 #Get a json with data from every municipality (included its id)
 def getJsonMunicipios(api_key):
   url = "https://opendata.aemet.es/opendata/api/maestro/municipios"
-  req = requests.get(url, headers = {"api_key": api_key})
-  return(req.json())
+  resp = requests.get(url, headers = {"api_key": api_key})
+  return(resp.json())
 
 #Function to get the id of a municipality in a dictionary
-def getIdMunicipio(nombreMunicipio, json):
-  for i in range(len(json)):
-    if json[i]["capital"] == nombreMunicipio:
-      return(json[i]["id"])
-    
+def getIdMunicipio(nombre, municipios):
+  for municipio in municipios:
+    if municipio["capital"] == nombre:
+      return(municipio["id"][2:])
+
 #Function to get temperature forecast from a specific municipality given its id
 def getTemperatureForecast(nombreMunicipio, idMunicipio, api_key):
   ini_url = "https://opendata.aemet.es/opendata/api/"
   path = "prediccion/especifica/municipio/horaria/"
-  url = ini_url + path + idMunicipio[2:]
-  req = requests.get(url, headers = {"api_key": api_key})
-  json = req.json()
+  url = ini_url + path + idMunicipio
+  headers = {"api_key": api_key}
   
-  url2 = json["datos"]
-  req2 = requests.get(url2, headers = {"api_key": api_key})
-  json2 = req2.json()
+  resp = requests.get(url, headers)
+  if resp.status_code != 200:
+    raise Exception("Status code:", resp.status_code, "Body:", resp.text)
   
-  temperatures = {
-    "Nombre del municipio": nombreMunicipio,
-    "Fecha de consulta": datetime.utcnow().strftime("%d-%m-%YT%H:%M:%S")
+  resp_json = resp.json()
+  if resp_json["estado"] != 200:
+    raise Exception(resp_json)
+  
+  url2 = resp_json["datos"]
+  
+  resp2 = requests.get(url2, headers)
+  if resp2.status_code != 200:
+    raise Exception("Status code:", resp2.status_code, "Body:", resp2.text)
+  
+  resp_json2 = resp2.json()
+
+  d = datetime.date.today() + datetime.timedelta(days = 1)
+  d_datetime = datetime.datetime(d.year, d.month, d.day)
+  d_isoformat = d_datetime.isoformat()
+
+  days_list = resp_json2[0]["prediccion"]["dia"]
+  
+  for day in days_list:
+    if day["fecha"] == d_isoformat:
+      data = day
+  
+  temperatures = data["temperatura"]
+  
+  if len(temperatures) != 24:
+    raise Exception("Wrong API response. Didn't return 24 values.")
+
+  temperatures_list = [t["value"] for t in temperatures]
+
+  doc = {
+    "municipio": nombreMunicipio,
+    "ts": d_datetime,
+    "temperatures": temperatures_list
   }
-  ini_dt = datetime.strptime(json2[0]["elaborado"], "%Y-%m-%dT%H:%M:%S")
   
-  for i in range(len(json2[0]["prediccion"]["dia"])):
-    for j in range(len(json2[0]["prediccion"]["dia"][i]["temperatura"])):
-      h = int(json2[0]["prediccion"]["dia"][i]["temperatura"][j]["periodo"])
-      dt = ini_dt.replace(hour = h, minute = 0, second = 0) + timedelta(days = i)
-      str_dt = dt.strftime("%d-%m-%YT%H:%M:%S")
-      temperature = int(json2[0]["prediccion"]["dia"][i]["temperatura"][j]["value"])
-      temperatures[str_dt] = temperature
-  
-  return(temperatures)
+  return(doc)
 
